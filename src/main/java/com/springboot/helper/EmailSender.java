@@ -13,6 +13,6 @@ public class EmailSender {
     }
 
     public void sendEmail(String message) throws InterruptedException, MailSendException {
-        emailSendable.send(message);
+        emailSendable.send(message); // 이 메서드 따라가보면 5초후 예외를 발생시키는 로직이 있음.
     }
 }
