@@ -3,16 +3,25 @@ package com.springboot.member.service;
 import com.springboot.exception.BusinessLogicException;
 import com.springboot.exception.ExceptionCode;
 import com.springboot.helper.EmailSender;
+import com.springboot.helper.email.MockExceptionEmailSendable;
+import com.springboot.helper.email.event.MemberRegistrationEvent;
 import com.springboot.member.entity.Member;
 import com.springboot.member.repository.MemberRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.mail.MailException;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -27,20 +36,25 @@ import java.util.concurrent.Executors;
 @Slf4j
 @Transactional
 @Service
+@EnableAsync
 public class MemberService {
     private final MemberRepository memberRepository;
-    private final EmailSender emailSender;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
-    public MemberService(MemberRepository memberRepository,
-                         EmailSender emailSender) {
+    public MemberService(MemberRepository memberRepository, ApplicationEventPublisher applicationEventPublisher) {
         this.memberRepository = memberRepository;
-        this.emailSender = emailSender;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
-
+    @Transactional
     public Member createMember(Member member) {
+
         verifyExistsEmail(member.getEmail());
+
         Member savedMember = memberRepository.save(member);
+
         log.info("# Saved member");
+
+        applicationEventPublisher.publishEvent(new MemberRegistrationEvent(savedMember));
         /**
          * TODO
          *  - 현재 이메일 전송 중 5초 뒤에 예외가 발생합니다.
@@ -56,15 +70,16 @@ public class MemberService {
          *      - 이벤트 리스너(Event Listener)가 이메일을 보내고 실패할 경우 이미 저장된 회원 정보를 삭제할 수 있습니다.
      *      - Spring에서는 @Async 애너테이션을 이용해서 비동기 작업을 손쉽게 처리할 수 있습니다.
          */
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
-        executorService.submit(() -> {
-            try {
-                emailSender.sendEmail("any email message");
-            } catch (Exception e) {
-                log.error("MailSendException happened: ", e);
-                throw new RuntimeException(e);
-            }
-        });
+//        ExecutorService executorService = Executors.newSingleThreadExecutor();
+//        executorService.submit(() -> {
+//            try {
+//                emailSender.sendEmail("any email message");
+//            } catch (Exception e) {
+//                log.error("MailSendException happened: ", e);
+//                throw new RuntimeException(e);
+//            }
+//        });
+
         return savedMember;
     }
 
