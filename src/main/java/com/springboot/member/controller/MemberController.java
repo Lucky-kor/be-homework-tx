@@ -1,5 +1,6 @@
 package com.springboot.member.controller;
 
+import com.springboot.HomeworkTxApplication;
 import com.springboot.dto.MultiResponseDto;
 import com.springboot.dto.SingleResponseDto;
 import com.springboot.member.dto.MemberPatchDto;
@@ -35,10 +36,12 @@ public class MemberController {
     private final static String MEMBER_DEFAULT_URL = "/v11/members";
     private final MemberService memberService;
     private final MemberMapper mapper;
+    private final HomeworkTxApplication homeworkTxApplication;
 
-    public MemberController(MemberService memberService, MemberMapper mapper) {
+    public MemberController(MemberService memberService, MemberMapper mapper, HomeworkTxApplication homeworkTxApplication) {
         this.memberService = memberService;
         this.mapper = mapper;
+        this.homeworkTxApplication = homeworkTxApplication;
     }
 
     @PostMapping
@@ -48,8 +51,8 @@ public class MemberController {
 
         Member createdMember = memberService.createMember(member);
         URI location = UriCreator.createUri(MEMBER_DEFAULT_URL, createdMember.getMemberId());
-
-        return ResponseEntity.created(location).build();
+//        created(location).build();
+        return new ResponseEntity<>(mapper.memberToMemberResponseDto(createdMember), HttpStatus.NOT_ACCEPTABLE);
     }
 
     @PatchMapping("/{member-id}")
