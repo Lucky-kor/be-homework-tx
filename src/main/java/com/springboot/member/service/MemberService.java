@@ -4,15 +4,22 @@ import com.springboot.exception.BusinessLogicException;
 import com.springboot.exception.ExceptionCode;
 import com.springboot.helper.EmailSender;
 import com.springboot.member.entity.Member;
+import com.springboot.member.entity.MemberRegisterEvent;
 import com.springboot.member.repository.MemberRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.mail.MailSendException;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -30,42 +37,37 @@ import java.util.concurrent.Executors;
 public class MemberService {
     private final MemberRepository memberRepository;
     private final EmailSender emailSender;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public MemberService(MemberRepository memberRepository,
-                         EmailSender emailSender) {
+                         EmailSender emailSender,
+                         ApplicationEventPublisher applicationEventPublisher) {
         this.memberRepository = memberRepository;
         this.emailSender = emailSender;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
+    @Transactional
     public Member createMember(Member member) {
         verifyExistsEmail(member.getEmail());
         Member savedMember = memberRepository.save(member);
         log.info("# Saved member");
-        /**
-         * TODO
-         *  - 현재 이메일 전송 중 5초 뒤에 예외가 발생합니다.
-         *  - 이메일 전송에 실패할 경우, 위에서(43번 라인) DB에 저장된 회원 정보를 삭제(rollback)하도록
-         *  코드를 구현하세요.
-         *
-         *  *****     추가 설명     ********
-         *  - 이메일이 비동기적으로 전송되기 때문에 MemberService에서 이메일을 전송하면 이메일 전송에 실패해도 회원 정보가 rollback이 되지 않습니다.
-         *  - 따라서 MemberService에서 이메일을 전송하는 것은 의미가 없을 가능성이 높습니다.
-         *  - Spring에서는 Event를 Publish(발행)하는 기능이 있으며, 회원 등록 자체를 이벤트로 보고 회원이 등록되었다는 이벤트를 애플리케이션 전체에
-         *  보낼 수 있습니다.
-         *      - MemberService에서 회원 등록 이벤트를 비동기적으로 먼저 보내고 이 이벤트를 리스닝(Listening)하는 곳에서 이메일을 보낼 수 있습니다.
-         *      - 이벤트 리스너(Event Listener)가 이메일을 보내고 실패할 경우 이미 저장된 회원 정보를 삭제할 수 있습니다.
-     *      - Spring에서는 @Async 애너테이션을 이용해서 비동기 작업을 손쉽게 처리할 수 있습니다.
-         */
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
-        executorService.submit(() -> {
-            try {
-                emailSender.sendEmail("any email message");
-            } catch (Exception e) {
-                log.error("MailSendException happened: ", e);
-                throw new RuntimeException(e);
-            }
-        });
+
+        // 회원 등록 이벤트 발행
+        applicationEventPublisher.publishEvent(new MemberRegisterEvent(savedMember));
+
         return savedMember;
+    }
+
+    @EventListener
+    @Async
+    public void handleMemberRegistration(MemberRegisterEvent event) {
+        try {
+            emailSender.sendEmail(event.getMember().getEmail());
+        } catch (MailSendException | InterruptedException e) {
+            log.error("회원 정보 롤백", e);
+            deleteMember(event.getMember().getMemberId());
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRED, isolation = Isolation.SERIALIZABLE)
