@@ -46,6 +46,7 @@ public class MemberController {
         Member member = mapper.memberPostDtoToMember(memberDto);
         member.setStamp(new Stamp()); // homework solution 추가
 
+        // createdMember
         Member createdMember = memberService.createMember(member);
         URI location = UriCreator.createUri(MEMBER_DEFAULT_URL, createdMember.getMemberId());
 

@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 public class EmailSender {
     private final EmailSendable emailSendable;
 
+
+    // 실제 구현체 : MockExceptionEmailSendable
     public EmailSender(EmailSendable emailSendable) {
         this.emailSendable = emailSendable;
     }
