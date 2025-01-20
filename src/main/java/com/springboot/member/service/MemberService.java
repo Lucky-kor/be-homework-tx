@@ -2,10 +2,11 @@ package com.springboot.member.service;
 
 import com.springboot.exception.BusinessLogicException;
 import com.springboot.exception.ExceptionCode;
-import com.springboot.helper.EmailSender;
 import com.springboot.member.entity.Member;
+import com.springboot.member.event.MemberRegistrationEvent;
 import com.springboot.member.repository.MemberRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -15,8 +16,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  *  - 메서드 구현
@@ -29,14 +28,15 @@ import java.util.concurrent.Executors;
 @Service
 public class MemberService {
     private final MemberRepository memberRepository;
-    private final EmailSender emailSender;
+    private final ApplicationEventPublisher eventPublisher;
 
     public MemberService(MemberRepository memberRepository,
-                         EmailSender emailSender) {
+                         ApplicationEventPublisher eventPublisher) {
         this.memberRepository = memberRepository;
-        this.emailSender = emailSender;
+        this.eventPublisher = eventPublisher;
     }
 
+    @Transactional(propagation = Propagation.REQUIRED)
     public Member createMember(Member member) {
         verifyExistsEmail(member.getEmail());
         Member savedMember = memberRepository.save(member);
@@ -56,15 +56,17 @@ public class MemberService {
          *      - 이벤트 리스너(Event Listener)가 이메일을 보내고 실패할 경우 이미 저장된 회원 정보를 삭제할 수 있습니다.
      *      - Spring에서는 @Async 애너테이션을 이용해서 비동기 작업을 손쉽게 처리할 수 있습니다.
          */
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
-        executorService.submit(() -> {
-            try {
-                emailSender.sendEmail("any email message");
-            } catch (Exception e) {
-                log.error("MailSendException happened: ", e);
-                throw new RuntimeException(e);
-            }
-        });
+//        ExecutorService executorService = Executors.newSingleThreadExecutor();
+//        executorService.submit(() -> {
+//            try {
+//                emailSender.sendEmail("any email message");
+//            } catch (Exception e) {
+//                log.error("MailSendException happened: ", e);
+//                throw new RuntimeException(e);
+//            }
+//        });
+
+        eventPublisher.publishEvent(new MemberRegistrationEvent(savedMember.getMemberId()));
         return savedMember;
     }
 
