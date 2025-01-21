@@ -42,7 +42,7 @@ public class MemberController {
     }
 
     @PostMapping
-    public ResponseEntity postMember(@Valid @RequestBody MemberPostDto memberDto) {
+    public ResponseEntity postMember(@Valid @RequestBody MemberPostDto memberDto)  {
         Member member = mapper.memberPostDtoToMember(memberDto);
         member.setStamp(new Stamp()); // homework solution 추가
 
