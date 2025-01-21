@@ -40,10 +40,6 @@ public class Member extends Auditable {
     @OneToOne(mappedBy = "member", cascade = {CascadeType.PERSIST, CascadeType.REMOVE})
     private Stamp stamp;
 
-    public Member(String email) {
-        this.email = email;
-    }
-
     public Member(String email, String name, String phone) {
         this.email = email;
         this.name = name;
